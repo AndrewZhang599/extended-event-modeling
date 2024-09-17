@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="f66117e5-117b-4c28-b859-6aaee483ff01" name="chpc-event">
+        <fileTransfer rootFolder="/ceph/chpc/home-ceph/a.j.zhang" accessType="SFTP" host="login3-01.chpc.wustl.edu" port="22" sshConfigId="6b7cc72c-12ff-4ddd-89d4-c91bf8800e32" sshConfig="a.j.zhang@login3-01.chpc.wustl.edu:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

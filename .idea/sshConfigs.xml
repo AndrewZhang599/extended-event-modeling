@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="login3-01.chpc.wustl.edu" id="6b7cc72c-12ff-4ddd-89d4-c91bf8800e32" keyPath="C:\Users\super\.ssh\id_rsa" port="22" nameFormat="DESCRIPTIVE" username="a.j.zhang" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>
