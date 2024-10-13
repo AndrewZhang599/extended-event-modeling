@@ -95,7 +95,9 @@ def get_emb(category_weights, emb_dim) -> np.ndarray:
     return average
 
 
-def get_emb_distance(category_distances, emb_dim=100) -> np.ndarray:
+
+
+def get_emb_distance(category_distances, emb_dim=100) -> np.ndarray: #this is where the weighted average is calculated-andrew 
     # Add 1 to avoid 3 objects with 0 distances (rare but might happen), then calculate inverted weights
     category_distances = category_distances + 1
     # Add 1 to avoid cases there is only one object

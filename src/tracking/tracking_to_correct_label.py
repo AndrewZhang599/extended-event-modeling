@@ -23,6 +23,7 @@ from copy import deepcopy
 from src.utils import BoxWrapper, FrameWrapper, CV2VideoWriter, CV2VideoReader, \
     ColorBGR, logger, parse_config, ColorRef
 
+#this is really cool 
 
 class TrackerWrapper:
     """
@@ -76,7 +77,7 @@ class TrackerWrapper:
     def get_track_name(self):
         return self.boxes[0].object_name
 
-    def predict_next_box(self, frame: np.ndarray) -> Dict:
+    def predict_next_box(self, frame: np.ndarray) -> Dict: #PROBABLY IMPORTANT ANDREW!!!!!!
         """
         This method receive a frame and return coordinates of its object on that frame
         :param frame:
