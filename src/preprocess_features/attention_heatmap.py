@@ -51,12 +51,12 @@ def Fixpos2Densemap(fix_arr, width, height):
     heatmap /= fix_arr.shape[0]
     return heatmap
 
-def get_mean(array, xindex, yindex):
-    """
-    Calculate the mean of a subarray defined by grid indices.
-    """
-    temp = np.hsplit(np.vsplit(array, 6)[yindex], 8)[xindex]
-    return np.mean(temp)
+# def get_mean(array, xindex, yindex):
+#     """
+#     Calculate the mean of a subarray defined by grid indices.
+#     """
+#     temp = np.hsplit(np.vsplit(array, 6)[yindex], 8)[xindex]
+#     return np.mean(temp)
 
 def process_movie(movie_file, output_csv):
     """
@@ -64,18 +64,19 @@ def process_movie(movie_file, output_csv):
     """
     file_read = pd.read_csv("../data/all_eye.csv")
     movie_data = file_read[file_read["video"] == movie_file]
-    frame_read = pd.read_csv(f"movie_{movie_file.replace('.', '')}_hand_grid_new.csv")
-    frame_list = frame_read['frame'].tolist()
-    unique_list = np.unique(frame_list).tolist()
+    # frame_read = pd.read_csv(f"movie_{movie_file.replace('.', '')}_hand_grid_new.csv")
+    # frame_list = frame_read['frame'].tolist()
+    # unique_list = np.unique(frame_list).tolist() 
+    unique_list = movie_data["frame"].unique().tolist()
 
     def save_saliency(f):
-        all_value = []
-        frame = movie_data[movie_data["frame"] == f]
-        new_frame = frame.groupby(['sub']).mean()
-        values = new_frame.to_numpy()
-        all_temp = Fixpos2Densemap(values, 1280, 720)
+        all_value = [] 
+        frame = movie_data[movie_data["frame"] == f] #for each frame of video 
+        new_frame = frame.groupby(['sub']).mean() #average the x and y values for each subject 
+        values = new_frame.to_numpy() #convert to numpy array 
+        all_temp = Fixpos2Densemap(values, 1280, 720) #width, height 
         for i, j in itertools.product(range(8), range(6)):
-            temp = get_mean(all_temp, i, j)
+            temp = all_temp[i,j]
             temp_data = [i + 1, j + 1, temp]
             all_value.append(temp_data)
         return all_value
