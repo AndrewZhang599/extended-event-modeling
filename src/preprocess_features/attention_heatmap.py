@@ -68,7 +68,7 @@ def process_movie(movie_file, output_csv):
     frame_list = frame_read['frame'].tolist()
     unique_list = np.unique(frame_list).tolist()
 
-    def save_saliency(f): #random change 
+    def save_saliency(f):
         all_value = []
         frame = movie_data[movie_data["frame"] == f]
         new_frame = frame.groupby(['sub']).mean()
