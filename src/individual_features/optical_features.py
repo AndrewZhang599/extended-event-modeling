@@ -80,8 +80,8 @@ if __name__ == '__main__':
     # Parse config file
     args = parse_config()
     if '.txt' in args.run:
-        choose = ['kinect']
-        # choose = ['C1']
+        # choose = ['kinect']
+        choose = ['C1']
         with open(args.run, 'r') as f:
             runs = f.readlines()
             runs = [run.strip() for run in runs if contain_substr(run, choose)]

@@ -387,20 +387,21 @@ def animate_video(resampledf, output_video_path):
 if __name__ == '__main__':
     # Parse config file
     args = parse_config()
-    if '.txt' in args.run:
-        choose = ['kinect']
-        # choose = ['C1']
-        with open(args.run, 'r') as f:
-            runs = f.readlines()
-            runs = [run.strip() for run in runs if contain_substr(run, choose)]
-    else:
-        runs = [args.run]
+    # if '.txt' in args.run:
+    #     # choose = ['kinect']
+    #     choose = ['C1']
+    #     with open(args.run, 'r') as f:
+    #         runs = f.readlines()
+    #         runs = [run.strip() for run in runs if contain_substr(run, choose)]
+    # else:
+    #     runs = [args.run]
 
     # gen_feature_video(track_csv=args.input_track_csv, skel_csv=args.input_skel_csv,
     #                   output_csv=args.output_objhand_csv)
 
     # runs = ['1.1.5_C1', '6.3.3_C1', '4.4.5_C1', '6.2.4_C1', '2.2.5_C1']
     # runs = ['1.1.5_C1', '4.4.5_C1']
+    runs = ['1.2.3_C1']
     if os.path.exists(f'output/objhand_complete_{args.feature_tag}.txt'):
         os.remove(f'output/objhand_complete_{args.feature_tag}.txt')
     if os.path.exists(f'output/objhand_error_{args.feature_tag}.txt'):
