@@ -581,7 +581,7 @@ if __name__ == '__main__':
             frame_id += 1
             # if frame_id > 400:
             #     break
-            ret, frame = cv2_video_reader.read_frame()
+            ret, frame = cv2_video_reader.read_frame() #get the next frame - andrew 
             if not ret:
                 logger.info('End of video stream, ret is False!')
                 break
@@ -623,7 +623,7 @@ if __name__ == '__main__':
                     for object_type, category_track in context_forward.tracks.items():
                         for object_id, track_wrapper in category_track.items():
                             for box_wrapper in track_wrapper.boxes:
-                                if box_wrapper.frame_id in buffer_frames:
+                                if box_wrapper.frame_id in buffer_frames: #if the box is in the buffer, write to csv - Andrew 
                                     writer = csv.writer(g)
                                     writer.writerow(box_wrapper.get_csv_row() + [width, height])
                 # reset buffer

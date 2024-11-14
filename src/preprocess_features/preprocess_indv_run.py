@@ -112,7 +112,7 @@ def get_embs_and_categories(objhand_df: pd.DataFrame, emb_dim=100, num_objects=3
     obj_handling_embs = np.zeros(shape=(0, emb_dim))
     categories = pd.DataFrame()
 
-    for i, row in objhand_df.iterrows():
+    for i, row in objhand_df.iterrows(): #for each frame - andrew 
         all_categories = list(row.index[row.notna()])
         if len(all_categories):
             # pick the nearest object
