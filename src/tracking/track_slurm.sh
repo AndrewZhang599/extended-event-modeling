@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --export=run=1.2.3_C1,tag=default
-#SBATCH -p tier2_gpu
+#SBATCH -p tier1_gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=8G
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --mincpus=8
 #SBATCH --output=logs/%j.tracking.%x.out
 #SBATCH --account=jeffrey_zacks
