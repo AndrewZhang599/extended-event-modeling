@@ -13,6 +13,8 @@ if __name__ == '__main__':
     logger.info(f'Config {args}')
     # Create video writer and reader
     cv2_video_reader = CV2VideoReader(input_video_path=args.input_video_path)
+    if not os.path.exists(args.output_video_path):
+        os.makedirs(args.output_video_path)
     cv2_video_writer = CV2VideoWriter(output_video_path=args.output_video_path,
                                       width=cv2_video_reader.width,
                                       height=cv2_video_reader.height)
