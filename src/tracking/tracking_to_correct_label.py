@@ -397,7 +397,7 @@ def draw_context_on_frames(context: Context, buffer_frames: Dict,
     for frame_id, frame in buffer_frames.items():
         frame_wrapper = FrameWrapper(frame, frame_id=frame_id)
         frame_wrapper.put_text(f'FrameID {frame_id}')
-        frame_wrapper.put_text(f'Second {frame_id // 30}')
+        frame_wrapper.put_text(f'Second {frame_id // cv2_video_reader.fps}') #changed this to fps - andrew
         if frame_id in labeled_frames:
             frame_wrapper.put_text(f'LABEL!!!', color=ColorBGR.cyan)
         cv2_video_writer.write_frame(frame)
