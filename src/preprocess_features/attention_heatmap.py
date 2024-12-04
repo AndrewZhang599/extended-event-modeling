@@ -1,15 +1,9 @@
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import pickle
-import csv
-from joblib import Parallel, delayed
+import dask.dataframe as dd 
 from pandas import DataFrame
-import itertools
-
-# This script processes eye-tracking data for multiple movies to produce saliency maps
-# and exports the results to CSV files. This is used to produce the analysis presented
-# in the manuscript.
+# from src.utils import parse_config
+import os 
 
 def GaussianMask(sizex, sizey, sigma=10, center=None, fix=1):
     """
@@ -49,48 +43,57 @@ def Fixpos2Densemap(fix_arr, width, height):
         place = GaussianMask(width, height, 33, center=center)
         heatmap += place
     heatmap /= fix_arr.shape[0]
-    return heatmap
+    normalized_heatmap = heatmap / np.sum(heatmap) #normalize the heatmap to sum to 1 
+    return normalized_heatmap*1000 #scale values by 1000 
 
-# def get_mean(array, xindex, yindex):
-#     """
-#     Calculate the mean of a subarray defined by grid indices.
-#     """
-#     temp = np.hsplit(np.vsplit(array, 6)[yindex], 8)[xindex]
-#     return np.mean(temp)
 
-def process_movie(movie_file, output_csv):
-    """
-    Process eye-tracking data for a single movie and save results to a CSV file.
-    """
-    file_read = pd.read_csv("../data/all_eye.csv")
-    movie_data = file_read[file_read["video"] == movie_file]
-    # frame_read = pd.read_csv(f"movie_{movie_file.replace('.', '')}_hand_grid_new.csv")
-    # frame_list = frame_read['frame'].tolist()
-    # unique_list = np.unique(frame_list).tolist() 
-    unique_list = movie_data["frame"].unique().tolist()
+def generate_heatmaps_and_attention_weights(frame, movie_data, width, height, tracking_df): 
+    current_frame = movie_data[movie_data['frame'] == frame]
+    new_frame = current_frame.groupby(['sub']).mean()
+    values = new_frame.to_numpy() 
+    heatmap = Fixpos2Densemap(values, width, height)
 
-    def save_saliency(f):
-        all_value = [] 
-        frame = movie_data[movie_data["frame"] == f] #for each frame of video 
-        new_frame = frame.groupby(['sub']).mean() #average the x and y values for each subject 
-        values = new_frame.to_numpy() #convert to numpy array 
-        all_temp = Fixpos2Densemap(values, 1280, 720) #width, height 
-        for i, j in itertools.product(range(8), range(6)):
-            temp = all_temp[i,j]
-            temp_data = [i + 1, j + 1, temp]
-            all_value.append(temp_data)
-        return all_value
+    def attention_weights(heatmap, tracking_df, frame):
+        current_frame = tracking_df[tracking_df['frame'] == frame]
+        attention_weights = {}
+        epsilon = 1e-6 #make sure the average is not 0 
 
-    results = Parallel(n_jobs=200)(delayed(save_saliency)(f) for f in unique_list)
-    results = np.array(results)
-    df = pd.DataFrame(results.reshape(-1, 3), columns=["gridx", "gridy", "hand_value"])
-    df["frame"] = [element for element in unique_list for _ in range(48)]
-    df.to_csv(output_csv, index=False)
+        boxes = current_frame[['name', 'x', 'y', 'w', 'h']].values
+        attention_weights = {
+            row[0]: np.mean(heatmap[int(row[2]):int(row[2])+int(row[4]), 
+                                   int(row[1]):int(row[1])+int(row[3])]) + epsilon
+            for row in boxes
+        }
+        
+        total = sum(attention_weights.values())
+        attention_weights = {k: v / total for k, v in attention_weights.items()} #normalize the attention weights
+       
+        print(attention_weights.values())
+        return attention_weights
+    attention_weights = attention_weights(heatmap, tracking_df, frame)
+    return heatmap, attention_weights
 
-# List of movies and corresponding output files
-movies = ["1.2.3.mp4", "3.1.3.mp4", "2.4.1.mp4", "6.3.9.mp4"]
-output_files = ["movie_123_gaze_grid.csv", "movie_313_gaze_grid.csv", "movie_241_gaze_grid.csv", "movie_639_gaze_grid.csv"]
 
-# Process each movie
-for movie, output in zip(movies, output_files):
-    process_movie(movie, output)
+if __name__ == "__main__":  
+    # args = parse_config()
+    tracking_df = pd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\tracking_all\1.2.3_C1_r50.csv')
+    eye_data = dd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\eye_all\all_eye_080422.csv').compute() 
+    output_dir = r"C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output"  # adjust path as needed
+    attention_weights_path = os.path.join(output_dir, "attention_weights", "1.2.3_C1_r50.csv")
+    heatmaps_path = os.path.join(output_dir, "heatmaps", "1.2.3_C1_r50.csv")  # adjust path as needed
+    movie_data = eye_data[eye_data['video'] == '1.2.3.mp4']
+    # unique_frames = tracking_df.index.unique().sort_values() 
+    unique_frames = range(1,10)
+
+    heatmaps = dict()
+    attention_weights_dict = dict()
+    for f in unique_frames: 
+        heatmap, attention_weights = generate_heatmaps_and_attention_weights(f, movie_data, 1280, 720, tracking_df)
+        heatmaps[f] = heatmap 
+        attention_weights[f] = attention_weights
+
+    attention_df = pd.DataFrame.from_dict(attention_weights_dict, orient='index')
+    attention_df.to_csv(attention_weights_path)
+
+    np.save(heatmaps_path, heatmaps)
+

@@ -385,6 +385,7 @@ def draw_context_on_frames(context: Context, buffer_frames: Dict,
     :return:
     """
     # going over all tracks
+    logger.info(f'Drawing context on frames - labeled_frames: {labeled_frames}') #andrew 
     for object_type, category_track in context.tracks.items():
         for object_id, track_wrapper in category_track.items():
             for box_wrapper in track_wrapper.boxes:
@@ -616,6 +617,7 @@ if __name__ == '__main__':
                 context_forward = matching_and_merging(context_forward, context_backward)
                 logger.info(f"After merging")
                 log_str = print_context(context_forward)
+                logger.info(f'Before drawing - labeled_frames: {labeled_frames}') #andrew 
                 draw_context_on_frames(context_forward, deepcopy(buffer_frames),
                                        cv2_video_writer_merged, labeled_frames=labeled_frames)
                 # write csv tracking
