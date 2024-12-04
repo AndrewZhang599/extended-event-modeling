@@ -79,8 +79,15 @@ if __name__ == "__main__":
     tracking_df = pd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\tracking_all\1.2.3_C1_r50.csv')
     eye_data = dd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\eye_all\all_eye_080422.csv').compute() 
     output_dir = r"C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output"  # adjust path as needed
-    attention_weights_path = os.path.join(output_dir, "attention_weights", "1.2.3_C1_r50.csv")
-    heatmaps_path = os.path.join(output_dir, "heatmaps", "1.2.3_C1_r50.csv")  # adjust path as needed
+
+    if not os.path.exists(os.path.join(output_dir, "attention_weights")):
+        os.makedirs(os.path.join(output_dir, "attention_weights"), exist_ok=True)
+    if not os.path.exists(os.path.join(output_dir, "heatmaps")):
+        os.makedirs(os.path.join(output_dir, "heatmaps"), exist_ok=True)
+
+    #save the attention weights and heatmaps as csv and npy files 
+    attention_weights_path = os.path.join(output_dir, "attention_weights", "1.2.3_C1_attention_weights.csv")
+    heatmaps_path = os.path.join(output_dir, "heatmaps", "1.2.3_C1_heatmaps.npy")  # adjust path as needed
     movie_data = eye_data[eye_data['video'] == '1.2.3.mp4']
     # unique_frames = tracking_df.index.unique().sort_values() 
     unique_frames = range(1,10)
@@ -90,7 +97,7 @@ if __name__ == "__main__":
     for f in unique_frames: 
         heatmap, attention_weights = generate_heatmaps_and_attention_weights(f, movie_data, 1280, 720, tracking_df)
         heatmaps[f] = heatmap 
-        attention_weights[f] = attention_weights
+        attention_weights_dict[f] = attention_weights
 
     attention_df = pd.DataFrame.from_dict(attention_weights_dict, orient='index')
     attention_df.to_csv(attention_weights_path)
