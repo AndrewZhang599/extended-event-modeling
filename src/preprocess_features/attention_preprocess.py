@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import dask.dataframe as dd 
 from pandas import DataFrame
-# from src.utils import parse_config
+from src.utils import parse_config, logger
 import os 
 
 def GaussianMask(sizex, sizey, sigma=10, center=None, fix=1):
@@ -75,10 +75,11 @@ def generate_heatmaps_and_attention_weights(frame, movie_data, width, height, tr
 
 
 if __name__ == "__main__":  
-    # args = parse_config()
-    tracking_df = pd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\tracking_all\1.2.3_C1_r50.csv')
-    eye_data = dd.read_csv(r'C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output\eye_all\all_eye_080422.csv').compute() 
-    output_dir = r"C:\Users\super\OneDrive\Desktop\Github repos\extended-event-modeling\output"  # adjust path as needed
+    args = parse_config()
+    logger.info(f"Running attention preprocess with the following config: {args}")
+    tracking_df = pd.read_csv(args.tracking_path)
+    eye_data = dd.read_csv(args.eye_data_path).compute() 
+    output_dir = args.output_dir
 
     if not os.path.exists(os.path.join(output_dir, "attention_weights")):
         os.makedirs(os.path.join(output_dir, "attention_weights"), exist_ok=True)
@@ -89,8 +90,9 @@ if __name__ == "__main__":
     attention_weights_path = os.path.join(output_dir, "attention_weights", "1.2.3_C1_attention_weights.csv")
     heatmaps_path = os.path.join(output_dir, "heatmaps", "1.2.3_C1_heatmaps.npy")  # adjust path as needed
     movie_data = eye_data[eye_data['video'] == '1.2.3.mp4']
-    # unique_frames = tracking_df.index.unique().sort_values() 
-    unique_frames = range(1,10)
+    tracking_df['frame'] = tracking_df['frame'] + 1 #add one to the frame number to match the eye data
+    # unique_frames = np.sort(tracking_df['frame'].unique())
+    unique_frames = range(1,5)
 
     heatmaps = dict()
     attention_weights_dict = dict()
