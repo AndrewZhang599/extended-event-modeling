@@ -3,7 +3,9 @@ import numpy as np
 import dask.dataframe as dd 
 from pandas import DataFrame
 from src.utils import parse_config, logger
+from joblib import Parallel, delayed
 import os 
+import csv 
 
 def GaussianMask(sizex, sizey, sigma=10, center=None, fix=1):
     """
@@ -47,31 +49,31 @@ def Fixpos2Densemap(fix_arr, width, height):
     return normalized_heatmap*1000 #scale values by 1000 
 
 
+def attention_weights_calculation(heatmap, tracking_df, frame):
+    current_frame = tracking_df[tracking_df['frame'] == frame]
+    attention_weights = {}
+    epsilon = 1e-6 #make sure the average is not 0 
+    boxes = current_frame[['name', 'x', 'y', 'w', 'h']].values
+    attention_weights = {
+        row[0]: np.mean(heatmap[int(row[2]):int(row[2])+int(row[4]), 
+                                   int(row[1]):int(row[1])+int(row[3])]) + epsilon
+            for row in boxes
+        }      
+    # total = sum(attention_weights.values()) #sum over all the attention weights
+    total = np.sum(heatmap) #sum of all heatmap values 
+    attention_weights = {k: v / total for k, v in attention_weights.items()} #normalize the attention weights by total heatmap sum
+   
+    print(attention_weights.values())
+    return frame, attention_weights
+
+
 def generate_heatmaps_and_attention_weights(frame, movie_data, width, height, tracking_df): 
     current_frame = movie_data[movie_data['frame'] == frame]
     new_frame = current_frame.groupby(['sub']).mean()
     values = new_frame.to_numpy() 
     heatmap = Fixpos2Densemap(values, width, height)
-
-    def attention_weights(heatmap, tracking_df, frame):
-        current_frame = tracking_df[tracking_df['frame'] == frame]
-        attention_weights = {}
-        epsilon = 1e-6 #make sure the average is not 0 
-
-        boxes = current_frame[['name', 'x', 'y', 'w', 'h']].values
-        attention_weights = {
-            row[0]: np.mean(heatmap[int(row[2]):int(row[2])+int(row[4]), 
-                                   int(row[1]):int(row[1])+int(row[3])]) + epsilon
-            for row in boxes
-        }
-        
-        total = sum(attention_weights.values())
-        attention_weights = {k: v / total for k, v in attention_weights.items()} #normalize the attention weights
-       
-        print(attention_weights.values())
-        return attention_weights
-    attention_weights = attention_weights(heatmap, tracking_df, frame)
-    return heatmap, attention_weights
+    frame, attention_weights = attention_weights_calculation(heatmap, tracking_df, frame)
+    return frame, heatmap, attention_weights
 
 
 if __name__ == "__main__":  
@@ -80,6 +82,9 @@ if __name__ == "__main__":
     tracking_df = pd.read_csv(args.tracking_path)
     eye_data = dd.read_csv(args.eye_data_path).compute() 
     output_dir = args.output_dir
+    # width = args.width.astype(int)
+    # height = args.height.astype(int)
+    movie = args.video_name
 
     if not os.path.exists(os.path.join(output_dir, "attention_weights")):
         os.makedirs(os.path.join(output_dir, "attention_weights"), exist_ok=True)
@@ -87,22 +92,45 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(output_dir, "heatmaps"), exist_ok=True)
 
     #save the attention weights and heatmaps as csv and npy files 
-    attention_weights_path = os.path.join(output_dir, "attention_weights", "1.2.3_C1_attention_weights.csv")
-    heatmaps_path = os.path.join(output_dir, "heatmaps", "1.2.3_C1_heatmaps.npy")  # adjust path as needed
-    movie_data = eye_data[eye_data['video'] == '1.2.3.mp4']
+    attention_weights_path = os.path.join(output_dir, "attention_weights", f"{movie}_C1_attention_weights.csv")
+    heatmaps_path = os.path.join(output_dir, "heatmaps", f"{movie}_C1_heatmaps.npy")  # adjust path as needed
+    movie_data = eye_data[eye_data['video'] == f'{movie}.mp4']
     tracking_df['frame'] = tracking_df['frame'] + 1 #add one to the frame number to match the eye data
-    # unique_frames = np.sort(tracking_df['frame'].unique())
-    unique_frames = range(1,5)
+    unique_frames = np.sort(tracking_df['frame'].unique())
+    # unique_frames = range(600,1000)
+    batch_size = 500 #process 500 frames at a time 
 
-    heatmaps = dict()
-    attention_weights_dict = dict()
-    for f in unique_frames: 
-        heatmap, attention_weights = generate_heatmaps_and_attention_weights(f, movie_data, 1280, 720, tracking_df)
-        heatmaps[f] = heatmap 
-        attention_weights_dict[f] = attention_weights
+    def process_frame(frame): 
+        frame, heatmap, attention_weights = generate_heatmaps_and_attention_weights(
+            frame, movie_data, 1280, 720, tracking_df
+        )
+        return frame, heatmap, attention_weights
 
-    attention_df = pd.DataFrame.from_dict(attention_weights_dict, orient='index')
-    attention_df.to_csv(attention_weights_path)
+    num_jobs = int(os.environ.get('SLURM_CPUS_PER_TASK', os.cpu_count()))
+    logger.info(f"Parallel processing with {num_jobs} jobs")
 
-    np.save(heatmaps_path, heatmaps)
+    with open(attention_weights_path, 'w', newline='') as f: 
+        writer = csv.writer(f) 
+        writer.writerow(['frame','object','attention_weight'])
 
+
+        for i in range(0, len(unique_frames), batch_size):
+            batch_frames = unique_frames[i:i+batch_size] 
+            logger.info(f"Processing batch from {batch_frames[0]} to {batch_frames[-1]}")
+
+            results = Parallel(n_jobs=num_jobs, verbose=10)(
+                delayed(process_frame)(frame) for frame in batch_frames 
+            )
+            for frame, heatmap, attention_weights in results: 
+                for obj, wt in attention_weights.items(): 
+                    writer.writerow([frame, obj, wt]) 
+            
+            # for result in results: 
+            #     frame, heatmap, attention_weights = result
+            #     heatmaps[frame] = heatmap
+            #     attention_weights_dict[frame] = attention_weights
+
+            f.flush() 
+            logger.info(f"Finished batch {i} to {i+batch_size}")
+            # np.save(heatmaps_path, heatmaps)
+    logger.info("All batches processed")
