@@ -46,13 +46,13 @@ def Fixpos2Densemap(fix_arr, width, height):
         heatmap += place
     heatmap /= fix_arr.shape[0]
     normalized_heatmap = heatmap / np.sum(heatmap) #normalize the heatmap to sum to 1 
-    return normalized_heatmap*1000 #scale values by 1000 
+    return normalized_heatmap*100000 #scale values by 1000
 
 
 def attention_weights_calculation(heatmap, tracking_df, frame):
     current_frame = tracking_df[tracking_df['frame'] == frame]
-    attention_weights = {}
-    epsilon = 1e-6 #make sure the average is not 0 
+    # attention_weights = {}
+    epsilon = 1e-6 #make sure the average is not 0
     boxes = current_frame[['name', 'x', 'y', 'w', 'h']].values
     attention_weights = {
         row[0]: np.mean(heatmap[int(row[2]):int(row[2])+int(row[4]), 
@@ -60,8 +60,8 @@ def attention_weights_calculation(heatmap, tracking_df, frame):
             for row in boxes
         }      
     # total = sum(attention_weights.values()) #sum over all the attention weights
-    total = np.sum(heatmap) #sum of all heatmap values 
-    attention_weights = {k: v / total for k, v in attention_weights.items()} #normalize the attention weights by total heatmap sum
+    # total = np.sum(heatmap) #sum of all heatmap values 
+    # attention_weights = {k: v for k, v in weights.items()} #normalize the attention weights by total heatmap sum
    
     print(attention_weights.values())
     return frame, attention_weights
@@ -97,8 +97,8 @@ if __name__ == "__main__":
     movie_data = eye_data[eye_data['video'] == f'{movie}.mp4']
     tracking_df['frame'] = tracking_df['frame'] + 1 #add one to the frame number to match the eye data
     unique_frames = np.sort(tracking_df['frame'].unique())
-    # unique_frames = range(600,1000)
-    batch_size = 500 #process 500 frames at a time 
+    # unique_frames = range(1,200)
+    batch_size = 500 #process 500 frames at a time
 
     def process_frame(frame): 
         frame, heatmap, attention_weights = generate_heatmaps_and_attention_weights(
