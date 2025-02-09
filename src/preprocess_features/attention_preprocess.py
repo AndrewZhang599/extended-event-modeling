@@ -52,23 +52,26 @@ def Fixpos2Densemap(fix_arr, width, height):
 def attention_weights_calculation(heatmap, tracking_df, frame):
     current_frame = tracking_df[tracking_df['frame'] == frame]
     attention_weights = {}
-    epsilon = 1e-6 #make sure the average is not 0
+    epsilon = 1e-6 #lowest value is epsilon
     boxes = current_frame[['name', 'x', 'y', 'w', 'h']].values
     for row in boxes: 
-        calc_attention = np.mean(heatmap[int(row[2]):int(row[2])+int(row[4]), 
-                                    int(row[1]):int(row[1])+int(row[3])]) + epsilon
+        y = int(row[2])
+        x = int(row[1])
+        w = int(row[3]) 
+        h = int(row[4])
+        bounding_area = heatmap[y:y+h, x:x+w] 
+        if np.sum(bounding_area) == 0: #make sure sum is not 0; if so, add epsilon 
+            calc_attention = epsilon
+        else: 
+            calc_attention = np.mean(bounding_area) + epsilon   #make sure lowest value is epsilon       
         
         if np.isnan(calc_attention): #make sure not nan; rare but happens 
             attention_weights[row[0]] = epsilon
+            
         else: 
             attention_weights[row[0]] = calc_attention
-
-    # total = sum(attention_weights.values()) #sum over all the attention weights
-    # total = np.sum(heatmap) #sum of all heatmap values 
-    # attention_weights = {k: v for k, v in weights.items()} #normalize the attention weights by total heatmap sum
-
    
-    print(attention_weights.values())
+    # print(attention_weights.values())
     return frame, attention_weights
 
 
