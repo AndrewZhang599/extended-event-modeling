@@ -24,12 +24,11 @@ def process_frame(frame_df, glove_vectors, emb_dim):
     frame_sum = np.zeros((1, emb_dim))
     count = 0
     for _, row in frame_df.iterrows():
-        # Split the object string into words and remove non-alphabetical characters.
         raw_words = row['object'].split(' ')
         words = [''.join(ch for ch in word if ch.isalpha()) for word in raw_words if word.strip() != '']
         if not words:
             continue
-       #averages the vectors for multi-word objects 
+       #averages the vectors for multiword objects 
         vec = np.zeros((1, emb_dim))
         valid_word_count = 0
         for word in words:
@@ -41,7 +40,7 @@ def process_frame(frame_df, glove_vectors, emb_dim):
         if valid_word_count == 0:
             continue
         vec /= valid_word_count
-        # Multiply the averaged vector by its attention weight.
+        #multiply the averaged vector by its attention weight.
         weighted_vec = vec * row['attention_weight']
         frame_sum += weighted_vec
         count += 1

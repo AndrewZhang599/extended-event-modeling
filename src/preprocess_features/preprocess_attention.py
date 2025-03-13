@@ -1,11 +1,15 @@
-import numpy as np
-import pandas as pd
-import math
+#!/usr/bin/env python3
 import os
-import pickle as pkl
+import sys
+import math
 import re
 import traceback
+import pickle as pkl
 from copy import deepcopy
+
+import numpy as np
+import pandas as pd
+
 from src.utils import parse_config, logger, contain_substr
 
 
@@ -21,10 +25,9 @@ def preprocess_optical(vid_csv, standardize=True):
     for c in vid_df.columns:
         if not standardize:
             vid_df.loc[:, c] = (vid_df[c] - min(vid_df[c].dropna())) / (
-                    max(vid_df[c].dropna()) - min(vid_df[c].dropna()))
+                max(vid_df[c].dropna()) - min(vid_df[c].dropna()))
         else:
-            vid_df.loc[:, c] = (vid_df[c] - vid_df[c].dropna().mean()) / vid_df[
-                c].dropna().std()
+            vid_df.loc[:, c] = (vid_df[c] - vid_df[c].dropna().mean()) / vid_df[c].dropna().std()
     return vid_df
 
 
@@ -44,7 +47,6 @@ def preprocess_skel(skel_csv, use_position=0, standardize=True, feature_tag='',
         else:
             skel_df.drop([c], axis=1, inplace=True)
 
-    # Using global statistics to filter skeleton-defective runs
     defective = 0
     # load sampled skel features, 200 samples for each video.
     combined_runs = pd.read_csv(f'{stats_skel_csv}')
@@ -71,101 +73,6 @@ def preprocess_skel(skel_csv, use_position=0, standardize=True, feature_tag='',
     return skel_df, defective
 
 
-def remove_number(string):
-    for i in range(100):
-        string = string.replace(str(i), '')
-    return string
-
-
-def get_emb(category_weights, emb_dim) -> np.ndarray:
-    average = np.zeros(shape=(1, emb_dim))
-    for category, prob in category_weights.iteritems():
-        r = np.zeros(shape=(1, emb_dim))
-        try:
-            r += glove_vectors[category]
-        except Exception as e:
-            # if this object is not in glove, use separate words with equal contribution
-            words = category.split(' ')
-            for w in words:
-                w = w.replace('(', '').replace(')', '')
-                r += glove_vectors[w]
-            r /= len(words)
-        # weighted average
-        average += r * prob
-    return average
-
-
-
-
-def get_emb_distance(category_distances, emb_dim=100) -> np.ndarray: #this is where the weighted average is calculated-andrew 
-    # Add 1 to avoid 3 objects with 0 distances (rare but might happen), then calculate inverted weights
-    category_distances = category_distances + 1
-    # Add 1 to avoid cases there is only one object
-    category_weights = 1 - category_distances / (category_distances.sum() + 1)
-    if category_weights.sum() == 0:
-        logger.error('Sum of probabilities is zero')
-    average = get_emb(category_weights, emb_dim=emb_dim)
-    return average / category_weights.sum()
-
-
-def get_embs_and_categories(objhand_df: pd.DataFrame, emb_dim=100, num_objects=3) -> (np.ndarray, pd.DataFrame):
-    obj_handling_embs = np.zeros(shape=(0, emb_dim))
-    categories = pd.DataFrame()
-
-    for i, row in objhand_df.iterrows():
-        all_categories = list(row.index[row.notna()])
-        if len(all_categories):
-            # pick the nearest object
-            nearest = row.argmin()
-            assert nearest != -1
-            # obj_handling_emb = get_emb_category(row.index[nearest], emb_dim)
-            new_row = pd.Series(data=row.dropna().sort_values().index[:num_objects], name=row.name)
-            categories = categories.append(new_row)
-            # Interestingly, some words such as towel are more semantically central than mouthwash
-            # glove.most_similar(glove['towel'] + ['mouthwash']) yields towel and words close to mouthwash, but not mouthwash!
-            obj_handling_emb = get_emb_distance(row.dropna().sort_values()[:num_objects], emb_dim)
-        else:
-            obj_handling_emb = np.full(shape=(1, emb_dim), fill_value=np.nan)
-        obj_handling_embs = np.vstack([obj_handling_embs, obj_handling_emb])
-    return obj_handling_embs, categories
-
-
-def preprocess_objhand(objhand_csv, standardize=False, use_depth=False, num_objects=3, feature='objhand') \
-        -> (pd.DataFrame, pd.DataFrame):
-    objhand_df = pd.read_csv(objhand_csv, index_col='frame')
-
-    def filter_objhand():
-        if use_depth:
-            filtered_df = objhand_df.filter(regex=f'_dist_z$')
-        else:
-            filtered_df = objhand_df.filter(regex=f'_dist$')
-        # be careful that filter function return a view, thus filtered_df is a view of objhand_df.
-        # deepcopy to avoid unwanted bugs
-        filtered_df = deepcopy(filtered_df)
-        s = [re.split('([a-zA-Z\s\(\)]+)([0-9]+)', x)[1] for x in filtered_df.columns]
-        instances = set(s)
-        for i in instances:
-            filtered_df.loc[:, i + '_mindist'] = filtered_df[[col for col in filtered_df.columns if i in col]].min(axis=1)
-        filtered_df = filtered_df.filter(regex='_mindist')
-        # remove mindist
-        filtered_df.rename(lambda x: x.replace('_mindist', ''), axis=1, inplace=True)
-
-        return filtered_df
-
-    objhand_df = filter_objhand()
-
-    obj_handling_embs, categories = get_embs_and_categories(objhand_df, emb_dim=emb_dim, num_objects=num_objects)
-
-    obj_handling_embs = pd.DataFrame(obj_handling_embs, index=objhand_df.index,
-                                     columns=list(map(lambda x: f'{feature}_{x}', range(emb_dim))))
-    # Standardizing using a single video might project embedded vectors to weird space (e.g. mouthwash -> srishti)
-    # Moreover, the word2vec model already standardize for the whole corpus, thus we don't need to standardize.
-    if standardize:
-        obj_handling_embs = (obj_handling_embs - obj_handling_embs.mean()) / obj_handling_embs.std()
-
-    return obj_handling_embs, categories
-
-
 def interpolate_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
     first_frame = dataframe.index[0]
     last_frame = dataframe.index[-1]
@@ -175,15 +82,57 @@ def interpolate_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
     return dummy_frame
 
 
+# ----------------------------------------------------------------------------------
+# New helper function from compute_attend_vec.py for attention-weighted embeddings
+# ----------------------------------------------------------------------------------
+
+def process_frame(frame_df, glove_vectors, emb_dim):
+    """
+    Process a single frame (group of rows) and compute its weighted average semantic vector.
+    Each row corresponds to an object with its associated attention weight.
+
+    Parameters:
+      frame_df (pd.DataFrame): DataFrame for one frame with columns 'object' and 'attention_weight'
+      glove_vectors (dict): Mapping from words to their GloVe vectors (numpy arrays)
+      emb_dim (int): Dimensionality of the embedding vectors
+
+    Returns:
+      np.ndarray: 1D numpy array of length emb_dim representing the frame's averaged vector.
+                  Returns an array of NaNs if no valid words are found.
+    """
+    frame_sum = np.zeros((1, emb_dim))
+    count = 0
+    for _, row in frame_df.iterrows():
+        raw_words = row['object'].split(' ')
+        words = [''.join(ch for ch in word if ch.isalpha()) for word in raw_words if word.strip() != '']
+        if not words:
+            continue
+        vec = np.zeros((1, emb_dim))
+        valid_word_count = 0
+        for word in words:
+            try:
+                vec += glove_vectors[word]
+                valid_word_count += 1
+            except KeyError:
+                continue
+        if valid_word_count == 0:
+            continue
+        vec /= valid_word_count
+        weighted_vec = vec * row['attention_weight']
+        frame_sum += weighted_vec
+        count += 1
+    if count == 0:
+        return np.full((emb_dim,), np.nan)
+    return (frame_sum / count).flatten()
+
+
 class FeatureProcessor:
     """
-    This class load individual features and pre-process them before feeding to the network
+    This class loads individual features and pre-processes them before feeding them to the network.
+    In this version, the only scene feature comes from the attention–weighted semantic vectors.
     """
-
-    def __init__(self, configs):
+    def __init__(self, configs, glove_vectors=None, emb_dim=None):
         self.feature_tag = configs.feature_tag
-        self.objhand_csv_dir = configs.objhand_csv
-        self.num_objects = configs.num_objects
         self.skel_csv_dir = configs.skel_csv
         self.ratio_samples = float(configs.ratio_samples)
         self.ratio_features = float(configs.ratio_features)
@@ -207,9 +156,12 @@ class FeatureProcessor:
         self.error_txt = f"output/preprocessed_error_{args.feature_tag}.txt"
         # if os.path.exists(self.error_txt):
         #     os.remove(self.error_txt)
+        self.video_name = configs.video_name
+        self.attention_weights_dir = configs.attention_weights
+        self.glove_vectors = glove_vectors
+        self.emb_dim = emb_dim
 
     def resample_df(self, df) -> pd.DataFrame:
-        # fps matter hear, we need feature vector at anchor timepoints to correspond to segmentation
         out_df = df.set_index(pd.to_datetime(df.index / self.fps, unit='s'), drop=False, verify_integrity=True)
         # dummy_frame is necessary in case df has missing frames and needs interpolation
         # though, df was already interpolated before in combine_data_frames and even after -> TODO: remove dummy_frame
@@ -237,89 +189,108 @@ class FeatureProcessor:
         combine_df.drop(['sync_time', 'frame'], axis=1, inplace=True, errors='ignore')
         return combine_df
 
-    def pre_process_all_features(self) -> None:
-        """
-        This method load individual features then combine and align them temporally
-        :return:
-        """
-        skel_df = self.pre_process_skel_feature()
-        appear_df = self.preprocess_appear_feature()
-        optical_df = self.preprocess_optical_feature()
-        obj_handling_embs = self.preprocess_objhand_feature()
-        scene_embs = self.preprocess_scene_feature()
-        # Get consistent start-end times and resampling rate for all features
-        combined_resampled_df = self.combine_dataframes([appear_df, optical_df, skel_df, obj_handling_embs, scene_embs])
-        self.df_dict['combined_resampled_df'] = combined_resampled_df
-
-    def preprocess_scene_feature(self) -> pd.DataFrame:
-        logger.info(f'Processing Scene features...')
-        objhand_csv = os.path.join(self.objhand_csv_dir, f'{self.run}_{self.feature_tag}_objhand.csv')
-        scene_embs, _ = preprocess_objhand(objhand_csv, standardize=False,
-                                           num_objects=30, use_depth=True,
-                                           feature='scene')
-        self.df_dict['scene_post'] = scene_embs
-        return scene_embs
-
-    def preprocess_objhand_feature(self) -> pd.DataFrame:
-        logger.info(f'Processing Objhand features...')
-        objhand_csv = os.path.join(self.objhand_csv_dir, f'{self.run}_{self.feature_tag}_objhand.csv')
-        obj_handling_embs, categories_z = preprocess_objhand(objhand_csv, standardize=False,
-                                                             num_objects=int(self.num_objects),
-                                                             use_depth=True, feature='objhand')
-        self.df_dict['objhand_post'] = obj_handling_embs
-        self.df_dict['categories_z'] = categories_z
-        return obj_handling_embs
-
-    def preprocess_optical_feature(self) -> pd.DataFrame:
-        logger.info(f'Processing Optical features...')
-        optical_csv = os.path.join(self.optical_csv_dir, f'{self.run}_{self.feature_tag}_video_features.csv')
-        optical_df = preprocess_optical(optical_csv, standardize=True)
-        self.df_dict['optical_post'] = optical_df
-        return optical_df
-
     def preprocess_appear_feature(self) -> pd.DataFrame:
-        logger.info(f'Processing Appear features...')
-        # For some reason, some optical flow videos have inf value
+        logger.info('Processing Appear features...')
         pd.set_option('use_inf_as_na', True)
         appear_csv = os.path.join(self.appear_csv_dir, f'{self.run}_{self.feature_tag}_appear.csv')
         appear_df = preprocess_appear(appear_csv)
         self.df_dict['appear_post'] = appear_df
         return appear_df
 
+    def preprocess_optical_feature(self) -> pd.DataFrame:
+        logger.info('Processing Optical features...')
+        optical_csv = os.path.join(self.optical_csv_dir, f'{self.run}_{self.feature_tag}_video_features.csv')
+        optical_df = preprocess_optical(optical_csv, standardize=True)
+        self.df_dict['optical_post'] = optical_df
+        return optical_df
+
     def pre_process_skel_feature(self) -> pd.DataFrame:
-        logger.info(f'Processing Skel features...')
+        logger.info('Processing Skel features...')
         skel_csv = os.path.join(self.skel_csv_dir, f'{self.run}_{self.feature_tag}_skel_features.csv')
         skel_df, defective = preprocess_skel(skel_csv, use_position=int(self.use_skel_position),
                                              standardize=True, feature_tag=self.feature_tag,
                                              ratio_samples=self.ratio_samples, ratio_features=self.ratio_features,
                                              stats_skel_csv=self.stats_skel_csv)
         if defective:
-            open(self.filtered_txt, 'a').write(f"{self.run}\n")
-
+            with open(self.filtered_txt, 'a') as f:
+                f.write(f"{self.run}\n")
         self.df_dict['skel_post'] = skel_df
         return skel_df
+
+    def preprocess_attention_scene_feature(self) -> pd.DataFrame:
+        """
+        This method loads the attention weights CSV (for the video given by self.video_name),
+        computes for each frame a weighted average GloVe embedding across all objects, and saves
+        the result as a CSV. The computed scene vectors are stored in df_dict.
+        """
+        logger.info("Processing Attention Scene features...")
+        attention_csv = os.path.join(self.attention_weights_dir, f"{self.video_name}_attention_weights.csv")
+        logger.info(f"Using attention weights from: {attention_csv}")
+
+       
+        attn_df = pd.read_csv(attention_csv) #these are the attention weights 
+        grouped = attn_df.groupby('frame')
+        results = []
+        for frame, group in grouped:
+            avg_vec = process_frame(group, self.glove_vectors, self.emb_dim)
+            if frame % 1000 == 0:
+                logger.info(f"Processed frame {frame}")
+            results.append((frame, avg_vec))
+
+        results.sort(key=lambda x: x[0])
+        out_dict = {'frame': [frame for frame, _ in results]}
+        for i in range(self.emb_dim):
+            col_name = f'attention_{i+1}'
+            out_dict[col_name] = [vec[i] for _, vec in results]
+        attention_scene_df = pd.DataFrame(out_dict)
+
+        # output_csv = os.path.join(self.attention_output_dir, f"{self.video_name}_scene_vectors.csv")
+        # os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+        # attention_scene_df.to_csv(output_csv, index=False)
+        # logger.info(f"Saved scene vectors to {output_csv}")
+        self.df_dict['attention_scene_post'] = attention_scene_df
+        return attention_scene_df
+
+    def pre_process_all_features(self) -> None:
+        """
+        This method loads individual features then combines and temporally aligns them.
+        The final combined DataFrame includes appear, optical, skel, and attention-weighted scene features.
+        """
+        skel_df = self.pre_process_skel_feature()
+        appear_df = self.preprocess_appear_feature()
+        optical_df = self.preprocess_optical_feature()
+        attention_scene_df = self.preprocess_attention_scene_feature()
+        combined_resampled_df = self.combine_dataframes([appear_df, optical_df, skel_df, attention_scene_df])
+        self.df_dict['combined_resampled_df'] = combined_resampled_df
 
     def save_df_dict(self) -> None:
         if not os.path.exists(f'{self.out_preprocess_pkl}'):
             os.mkdir(f'{self.out_preprocess_pkl}')
-        logger.info(f"Saving {self.out_preprocess_pkl}{self.run}_{self.feature_tag}.pkl")
-        pkl.dump(self.df_dict, open(f'{self.out_preprocess_pkl}{self.run}_{self.feature_tag}.pkl', 'wb'))
-        logger.info(f"Saved {self.out_preprocess_pkl}{self.run}_{self.feature_tag}.pkl")
-        open(self.complete_txt, 'a').write(f"{self.run}\n")
+        out_pkl_file = os.path.join(self.out_preprocess_pkl, f"{self.video_name}_{self.feature_tag}.pkl")
+        logger.info(f"Saving {out_pkl_file}")
+        with open(out_pkl_file, 'wb') as f:
+            pkl.dump(self.df_dict, f)
+        logger.info(f"Saved {out_pkl_file}")
+        with open(self.complete_txt, 'a') as f:
+            f.write(f"{self.video_name}\n")
+
 
 
 if __name__ == "__main__":
     args = parse_config()
-    # glove_vectors = gensim.downloader.load('glove-wiki-gigaword-50')
-    with open(f'{args.glove}', 'rb') as f:
-        glove_vectors = pkl.load(f)
-    # glove_vectors = gensim.downloader.load('word2vec-ruscorpora-300')
-    emb_dim = glove_vectors['apple'].size
     logger.info(f'Config: {args}')
     assert '.txt' not in args.run, f"run argument should be a video name, e.g. 1.2.3_kinect, fed {args.run}"
-    processor = FeatureProcessor(configs=args)
+ 
+    with open(f'{args.glove}', 'rb') as f:
+        glove_vectors = pkl.load(f)
+
+    emb_dim = glove_vectors['apple'].shape[0]
+    logger.info(f"GloVe embedding dimension: {emb_dim}")
+
+    processor = FeatureProcessor(configs=args, glove_vectors=glove_vectors, emb_dim=emb_dim)
     try:
         processor.pre_process_all_features()
         processor.save_df_dict()
     except Exception as e:
-        open(processor.error_txt, 'a').write(f"{processor.run}\n{traceback.format_exc()}\n")
+        with open(processor.error_txt, 'a') as err_f:
+            err_f.write(f"{processor.run}\n{traceback.format_exc()}\n")
